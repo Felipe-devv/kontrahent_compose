@@ -1,1 +1,1 @@
-# kontrahent_compose
+# docker compose up --build #
