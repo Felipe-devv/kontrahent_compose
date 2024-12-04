@@ -1,0 +1,65 @@
+services:
+  db:
+    image: mysql:9.0
+    container_name: kontrahent_db
+    environment:
+      MYSQL_DATABASE: kontrahent
+      MYSQL_USER: springstudent
+      MYSQL_PASSWORD: springstudent
+      MYSQL_ROOT_PASSWORD: admin
+    volumes:
+      - db_data:/var/lib/mysql
+      - ./sql/kontrahent_with_default_data.sql:/docker-entrypoint-initdb.d/1-kontrahent.sql
+    ports:
+      - "3306:3306"
+    healthcheck:
+      test: mysqladmin ping -h 127.0.0.1 -u $$MYSQL_USER --password=$$MYSQL_PASSWORD
+      start_period: 5s
+      interval: 5s
+      timeout: 5s
+      retries: 55
+
+  db_backup:
+    image: mysql:9.0
+    container_name: kontrahent_db_backup
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - db_backups:/backups
+      - ./backups:/backups
+    environment:
+      MYSQL_HOST: db
+      MYSQL_USER: root
+      MYSQL_PASSWORD: admin
+    entrypoint: >
+      sh -c "while true; do mysqldump -h db -u\$MYSQL_USER -p\$MYSQL_PASSWORD --all-databases > /backups/backup-$(date +%F).sql; sleep 86400; done"
+  backend:
+    image: felipedevv977/kontrahent_api:1.1
+    container_name: kontrahent_server
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "8080:8080"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mysql://kontrahent_db:3306/kontrahent
+      SPRING_DATASOURCE_USERNAME: springstudent
+      SPRING_DATASOURCE_PASSWORD: springstudent
+  frontend_angular:
+    image: felipedevv977/kontrahent_front:1.1
+    container_name: kontrahent_web_server
+    depends_on:
+      - backend
+    ports:
+      - "4200:4200"
+  smpt_server:
+    image: maildev/maildev:latest
+    container_name: smtp_server
+    ports:
+      - "1080:1080"
+      - "1025:1025"
+
+volumes:
+  db_data:
+  db_backups:
